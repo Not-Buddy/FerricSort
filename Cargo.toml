@@ -1,0 +1,12 @@
+[package]
+name = "garbage_classification"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tch        = "0.14"
+imageproc  = "0.23"
+rand       = "0.8"
+anyhow     = "1"
+image = { version = "0.24.9", features = ["jpeg", "png"] }
+rayon = "1.7"
