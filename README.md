@@ -1,3 +1,9 @@
+
+##Kaggle datasetlink
+```link
+https://www.kaggle.com/datasets/zlatan599/garbage-dataset-classification
+```
+
 #For CPU-only (Linux), download:
 
 ```link
