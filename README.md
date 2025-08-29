@@ -19,4 +19,6 @@ export LIBTORCH=/home/buddy/libtorch/libtorch
 Set Library path
 ```bash
 export LD_LIBRARY_PATH=/home/buddy/libtorch/libtorch/lib:$LD_LIBRARY_PATH
-```# garbage_classification
+```
+
+# garbage_classification
