@@ -1,6 +1,6 @@
 // relu.rs
 
-use tch::nn::{self, ModuleT};
+use tch::nn::{self};
 use tch::Tensor;
 
 // CNN model mimicking the Python nn.Module class
