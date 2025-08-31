@@ -1,10 +1,9 @@
 // menu.rs
-use std::io::{self, Write};
 use std::{fs, path::Path};
 use image::{imageops, DynamicImage};
 use imageproc::geometric_transformations::{rotate_about_center, Interpolation};
 use rand::{seq::SliceRandom, Rng};
-use tch::{Device, Tensor};
+use tch::{Tensor};
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -77,67 +76,4 @@ pub fn load_dataset(root: &str) -> Vec<Sample> {
         .collect();
     println!("Completed processing {} images", results.len());
     results
-}
-
-pub fn display_menu() {
-    println!("\n🗂️ Garbage Classification Training Menu");
-    println!("{}", "=".repeat(50));
-    println!("1. 🚀 Quick Test (500 samples, 2 epochs, CPU)");
-    println!("2. 🔬 Medium Test (2000 samples, 5 epochs, CPU/GPU)");
-    println!("3. 📊 Full Training (All samples, 100 epochs, GPU recommended)");
-    println!("4. 🎯 Custom Configuration");
-    println!("5. ❌ Exit");
-    println!("{}", "=".repeat(50));
-    print!("Enter your choice (1-5): ");
-}
-
-pub fn get_user_input() -> String {
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read input");
-    input.trim().to_string()
-}
-
-pub fn get_training_config(choice: &str) -> Option<(usize, i64, f64, i64, f64, i64, Device)> {
-    match choice {
-        "1" => {
-            println!("🚀 Quick Test Configuration Selected");
-            Some((500, 2, 1e-3, 1, 0.9, 8, Device::Cpu))
-        },
-        "2" => {
-            println!("🔬 Medium Test Configuration Selected");
-            Some((2000, 5, 1e-3, 2, 0.85, 16, Device::cuda_if_available()))
-        },
-        "3" => {
-            println!("📊 Full Training Configuration Selected");
-            Some((usize::MAX, 100, 1e-4, 5, 0.85, 32, Device::cuda_if_available()))
-        },
-        "4" => {
-            println!("🎯 Custom Configuration");
-            
-            print!("Enter max samples (or 0 for all): ");
-            io::stdout().flush().unwrap();
-            let max_samples = get_user_input().parse::<usize>().unwrap_or(1000);
-            let max_samples = if max_samples == 0 { usize::MAX } else { max_samples };
-            
-            print!("Enter number of epochs: ");
-            io::stdout().flush().unwrap();
-            let epochs = get_user_input().parse::<i64>().unwrap_or(5);
-            
-            print!("Enter learning rate (e.g., 0.001): ");
-            io::stdout().flush().unwrap();
-            let lr = get_user_input().parse::<f64>().unwrap_or(1e-3);
-            
-            print!("Enter batch size: ");
-            io::stdout().flush().unwrap();
-            let batch_size = get_user_input().parse::<i64>().unwrap_or(16);
-            
-            print!("Use GPU if available? (y/n): ");
-            io::stdout().flush().unwrap();
-            let use_gpu = get_user_input().to_lowercase() == "y";
-            let device = if use_gpu { Device::cuda_if_available() } else { Device::Cpu };
-            
-            Some((max_samples, epochs, lr, 2, 0.85, batch_size, device))
-        },
-        _ => None,
-    }
 }
