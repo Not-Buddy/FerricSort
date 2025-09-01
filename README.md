@@ -89,6 +89,10 @@ export LD_LIBRARY_PATH=$LIBTORCH/lib:$LD_LIBRARY_PATH
 - **Common Confusions**: Glass ↔ Paper/Plastic (expected due to visual similarity)
 - **Learning Curve**: Smooth convergence without overfitting
 
+![Training Loss](https://media.discordapp.net/attachments/753199271318388737/1412032326858313809/training_validation_loss.png?ex=68b6d115&is=68b57f95&hm=3ee29daf0b17e3835a9c98f24bc925a21b03b692c3e40e00f2d87673fe2c765b&=&format=webp&quality=lossless&width=1882&height=1310)
+![Confusion Matrix](https://cdn.discordapp.com/attachments/753199271318388737/1412032328133251203/confusion_matrix.png?ex=68b6d115&is=68b57f95&hm=bb68bc6db103e85be2a3bcf085ccbf8b5731c26c730d76a751d41cb7b9ea6632&)
+
+
 ## 🌐 Kaggle Integration**Live Demo**: [Garbage Classifier Rust on Kaggle](https://www.kaggle.com/code/aarymilindkinge/garbage-classifier-rust)
 
 This project was developed and tested on **Kaggle Notebooks** using free GPU access, demonstrating the feasibility of Rust-based deep learning on cloud platforms.
