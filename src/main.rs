@@ -16,15 +16,16 @@ use training_validation::run_complete_evaluation;
 fn parse_config_choice() -> Option<String> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        println!("Usage: cargo run -- <config_choice>");
+        println!("Usage: cargo run -- <choice>");
         println!("Available choices:");
-        println!("  1 - Quick Test (500 samples, 2 epochs, CPU)");
-        println!("  2 - Medium Test (2000 samples, 5 epochs, CPU/GPU)");
-        println!("  3 - Full Training (All samples, 100 epochs, GPU)");
-        println!("  4 - Custom Configuration");
+        println!(" 1 - Quick Test (500 samples, 2 epochs, CPU)");
+        println!(" 2 - Medium Test (2000 samples, 5 epochs, CPU/GPU)");
+        println!(" 3 - Full Training (All samples, 100 epochs, GPU)");
+        println!(" 4 - Custom Configuration");
         println!("Example: cargo run -- 2");
         return None;
     }
+
     Some(args[1].clone())
 }
 
@@ -39,12 +40,12 @@ fn get_training_config_cli(choice: &str) -> Option<(usize, i64, f64, i64, f64, i
             Some((2000, 5, 1e-3, 2, 0.85, 16, Device::cuda_if_available()))
         },
         "3" => {
-            println!("📊 Full Training Configuration Selected");
-            Some((usize::MAX, 100, 1e-4, 5, 0.85, 32, Device::cuda_if_available()))
+            println!("📊 Full Training Configuration Selected - ENHANCED");
+            Some((usize::MAX, 100, 1e-3, 10, 0.8, 32, Device::cuda_if_available()))  // Updated LR
         },
         "4" => {
-            println!("🎯 Default Custom Configuration");
-            Some((1000, 10, 1e-3, 3, 0.8, 16, Device::cuda_if_available()))
+            println!("🎯 Enhanced Custom Configuration");
+            Some((3000, 50, 1e-3, 8, 0.85, 24, Device::cuda_if_available()))
         },
         _ => {
             println!("❌ Invalid choice! Use 1, 2, 3, or 4");
@@ -87,8 +88,8 @@ fn main() -> anyhow::Result<()> {
     let vs = nn::VarStore::new(device);
     let num_classes = 6;
     let dropout_rate = 0.15;
-
     let model = CNN::new(&vs.root(), num_classes, dropout_rate);
+
     println!("✅ Created CNN model with {} classes", num_classes);
 
     // Device info
@@ -102,16 +103,16 @@ fn main() -> anyhow::Result<()> {
     visualize_batch(&mut val_loader, "val_batch_grid.png")?;
 
     println!("\n📊 Dataset Information:");
-    println!("  Total samples: {}", data.len());
-    println!("  Training samples: {}", train_data.len());
-    println!("  Validation samples: {}", val_data.len());
-    println!("  Batch size: {}", batch_size);
-    println!("  First sample tensor shape: {:?}", data[0].img.size());
-    println!("  Sample tensor range: {:.3} to {:.3}",
+    println!(" Total samples: {}", data.len());
+    println!(" Training samples: {}", train_data.len());
+    println!(" Validation samples: {}", val_data.len());
+    println!(" Batch size: {}", batch_size);
+    println!(" First sample tensor shape: {:?}", data[0].img.size());
+    println!(" Sample tensor range: {:.3} to {:.3}",
         data[0].img.min().double_value(&[]),
         data[0].img.max().double_value(&[]));
 
-    // Training phase
+    // Training phase - FIXED: Added missing fields
     println!("\n🏋️ Starting Training...");
     let config = TrainingConfig {
         num_epochs,
@@ -119,22 +120,30 @@ fn main() -> anyhow::Result<()> {
         step_size,
         gamma,
         max_norm: 1.0,
+        weight_decay: 1e-4,        // FIXED: Added missing field
+        warmup_epochs: 5,          // FIXED: Added missing field
     };
 
     println!("⚙️ Training Configuration:");
-    println!("  Epochs: {}", num_epochs);
-    println!("  Learning Rate: {:.6}", learning_rate);
-    println!("  Step Size: {}", step_size);
-    println!("  Gamma: {}", gamma);
+    println!(" Epochs: {}", num_epochs);
+    println!(" Learning Rate: {:.6}", learning_rate);
+    println!(" Step Size (decay interval): {}", step_size);
+    println!(" Gamma (decay factor): {}", gamma);
+    println!(" Weight Decay: {:.6}", config.weight_decay);
+    println!(" Warmup Epochs: {}", config.warmup_epochs);
+    println!(" 🔄 Using Hybrid: Cosine Annealing + Step Decay");
+
 
     let start_time = std::time::Instant::now();
-    let _stats = train_model(&model, &mut train_loader, &mut val_loader, &vs, config)?;
-    let training_duration = start_time.elapsed();
 
+    let _stats = train_model(&model, &mut train_loader, &mut val_loader, &vs, config)?;
+
+    let training_duration = start_time.elapsed();
     println!("⏱️ Training completed in: {:?}", training_duration);
 
     // Comprehensive evaluation
     let class_names = ["cardboard", "glass", "metal", "paper", "plastic", "trash"];
+
     let train_losses: Vec<f64> = _stats.training_losses.clone();
     let val_losses: Vec<f64> = _stats.validation_losses.clone();
 
