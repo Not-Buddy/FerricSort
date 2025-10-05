@@ -269,8 +269,7 @@ pub fn train_model(
 
     
     // Initialize early stopping
-    let mut early_stopping = EarlyStopping::new(15, 0.001); // Patience of 15 epochs
-
+    let mut early_stopping = EarlyStopping::new(25, 0.0005);
     let mut stats = TrainingStats::new();
     let mut best_val_acc = 0.0;
 
