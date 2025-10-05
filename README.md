@@ -1,12 +1,12 @@
 # Garbage Classification 
 - Rust CNNA high-performance Convolutional Neural Network (CNN) for garbage classification built from scratch using **Rust** and the **tch** crate (PyTorch bindings).
-- This project classifies waste into 6 categories: cardboard, glass, metal, paper, plastic, and trash with **75% validation accuracy** or more depending on how much you train it.
+- This project classifies waste into 6 categories: cardboard, glass, metal, paper, plastic, and trash with **82.24% validation accuracy on unseen dataset** or more depending on how much you train it.
 
 ## 🎯 Project Overview- **Language**: Rust with tch (PyTorch C++ API bindings)
 - **Model**: Custom CNN with batch normalization, dropout, and data augmentation
 - **Classes**: 6 garbage types (cardboard, glass, metal, paper, plastic, trash)
 - **Dataset Size**: 13,901 images
-- **Performance**: 75% validation accuracy
+- **Performance**: 82.24% validation accuracy
 - **Training Platform**: Kaggle GPUs
 
 ## 📊 Dataset**Source**: [Garbage Classification Dataset on Kaggle](https://www.kaggle.com/datasets/zlatan599/garbage-dataset-classification)
@@ -18,21 +18,30 @@
 - **Data Augmentation**: Random horizontal/vertical flips, rotation, resizing
 
 ## 🚀 Features
-### Model Architecture- **Feature Extraction**: 3 convolutional blocks (32→64→128 channels)
-- **Pooling**: Max pooling and Global Average Pooling
-- **Classification**: Fully connected layers with dropout (0.15)
-- **Regularization**: Batch normalization, gradient clipping
 
-### Training Features- **Learning Rate Scheduling**: StepLR with γ=0.85 every 5 epochs
-- **Optimizer**: Adam with initial LR=1e-4
-- **Loss Function**: Cross-entropy loss
-- **Batch Size**: 32 (configurable)
-- **Device Support**: Auto-detection of CUDA GPUs
+### Model Architecture
+- **Feature Extraction**: 5 convolutional blocks with increasing channels (32→64→128→256→512)
+- **Pooling**: Max Pooling and Adaptive Average Pooling to capture spatial features
+- **Classification**: Multi-layer fully connected layers with dropout (0.15 and 0.075) for regularization
+- **Regularization**: Batch normalization, gradient clipping to prevent exploding gradients
 
-### Evaluation & Visualization- **Comprehensive Metrics**: Precision, recall, F1-score per class
-- **Confusion Matrix**: Detailed misclassification analysis
-- **Loss Curves**: Training/validation loss tracking
-- **Export**: CSV files for external analysis + Python plotting scripts
+### Training Features
+- **Hybrid Learning Rate Scheduling**: Combines warmup, cosine annealing, and step decay for adaptive learning rate tuning
+- **Early Stopping**: Validation-based configurable patience to stop training when no improvement is observed
+- **Optimizer**: Adam optimizer with weight decay and epsilon tuning for stable convergence
+- **Loss Function**: Cross-entropy with optional label smoothing (configurable)
+- **Batch Size**: 32 (configurable per training session)
+- **Device Support**: Automatic CUDA GPU detection with fallback to CPU
+- **Gradient Clipping**: Clips gradients with max norm to maintain training stability
+- **Multiple Model Saving Formats**: PyTorch native, named tensor format, individual tensor files, and JSON metadata for universal compatibility
+- **Interactive Model Testing**: Command-line interface for manual image testing during development
+- **Training Statistics Export**: Epoch-wise metrics saved in CSV for analysis and visualization
+
+### Evaluation & Visualization
+- **Comprehensive Metrics**: Precision, recall, F1-score, and support per class
+- **Confusion Matrix**: Detailed misclassification analysis and CSV export
+- **Loss Curves**: Training and validation loss tracking included
+- **Export**: CSV files and Python plotting scripts for detailed metric visualization
 
 ## ⚙️ Installation & Setup### Prerequisites```bash
 # Install Rust (if not already installed)
@@ -58,31 +67,37 @@ curl -O https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-wi
 export LIBTORCH=/path/to/libtorch
 export LD_LIBRARY_PATH=$LIBTORCH/lib:$LD_LIBRARY_PATH
 ```
+***
 
-### Training Configurations| Config | Samples | Epochs | Device | Batch Size | Use Case |
-```
-|--------|---------|--------|--------|------------|----------|
-| 1      | 500     | 2      | CPU    | 8          | Quick test |
-| 2      | 2,000   | 5      | GPU    | 16         | Development |
-| 3      | All     | 100    | GPU    | 32         | Full training |
-| 4      | Custom  | Custom | Custom | Custom     | Experimentation |
-```
+## 📈 Results
 
-## 📈 Results### Performance Metrics- **Overall Accuracy**: 75% (validation)
-- **Training Time**: ~1 hour 23 minutes (100 epochs, GPU)
-- **Final Training Loss**: 0.6566
-- **Final Validation Loss**: 0.7176
+### Performance Metrics
 
-### Per-Class Performance| Class     | Precision | Recall | F1-Score | Support |
-```
+- **Overall Accuracy**: 83.35% (validation, best epoch: 52)
+- **Training Time**: ~1 hour 3 minutes (57 epochs, early stopping, GPU)
+- **Final Training Loss**: 0.0394
+- **Final Validation Loss**: 0.7798
+
+### Per-Class Performance
+
+| Class     | Precision | Recall | F1-Score | Support |
 |-----------|-----------|--------|----------|---------|
-| Cardboard | 0.79      | 0.83   | 0.81     | 436     |
-| Glass     | 0.67      | 0.68   | 0.67     | 440     |
-| Metal     | 0.81      | 0.70   | 0.75     | 478     |
-| Paper     | 0.74      | 0.72   | 0.73     | 506     |
-| Plastic   | 0.72      | 0.77   | 0.75     | 500     |
-| Trash     | 0.76      | 0.78   | 0.77     | 421     |
-```
+| Cardboard | 0.80      | 0.87   | 0.83     | 408     |
+| Glass     | 0.84      | 0.78   | 0.81     | 477     |
+| Metal     | 0.83      | 0.83   | 0.83     | 474     |
+| Paper     | 0.83      | 0.86   | 0.84     | 460     |
+| Plastic   | 0.85      | 0.84   | 0.85     | 508     |
+| Trash     | 0.83      | 0.81   | 0.82     | 454     |
+
+**Weighted Avg:** P=0.83, R=0.83, F1=0.83 (all classes, support=2781)
+
+***
+
+- **Confusion matrix and more are available in `confusion_matrix.csv`, `evaluation_results.csv`.**
+- **For learning curves, see the included plot script output.**
+- **Model formats:** PyTorch `.pt`, named tensors, individual tensors, JSON metadata.
+
+***
 
 ### Key Insights- **Best Performance**: Cardboard and Metal classification
 - **Challenge Areas**: Glass classification (visually similar to other materials)
@@ -141,32 +156,54 @@ CNN {
 }
 ```
 
-### Training Features- **Automatic Mixed Precision**: GPU optimization
-- **Learning Rate Scheduling**: Exponential decay
-- **Early Stopping**: Validation-based (configurable)
-- **Gradient Clipping**: Prevents exploding gradients
-- **Progress Monitoring**: Real-time loss and accuracy tracking
+### Training Features
 
-## 📊 Generated OutputsAfter training, the following files are automatically generated:
+- **Hybrid Learning Rate Scheduling**: Combines warmup, cosine annealing, and step decay for smooth and adaptive learning rate adjustment
+- **Early Stopping**: Validation-based early stopping with configurable patience and minimum improvement thresholds to prevent overfitting
+- **Gradient Clipping**: Stable training by clipping gradients with max norm to prevent exploding gradients
+- **Multiple Model Saving Formats**: Saves models in PyTorch native, named tensor, individual tensor, and metadata JSON formats for maximum usability and interoperability
+- **Automatic Device Selection**: GPU-enabled training with fallback to CPU for seamless cross-platform compatibility
+- **Progress Monitoring**: Real-time logging of training/validation losses, accuracies, and learning rates with epoch-wise summaries
+- **Comprehensive Evaluation**: Detailed per-class precision, recall, F1-score, confusion matrix generation, and CSV export for analysis
+- **Interactive Model Testing**: Manual image classification interface for fast inference and validation during development
+- **Efficient Data Loading**: Custom DataLoader with batch handling and image preprocessing aligned with training specs
+- **Training Statistics Export**: Saves complete training metrics in CSV supporting downstream visualization and analysis
 
-- `training_losses.csv` - Loss data for plotting
-- `confusion_matrix.csv` - Confusion matrix data
-- `evaluation_results.csv` - Detailed predictions with probabilities
-- `training_stats.csv` - Complete training metrics
-- `plot_results.py` - Python script for visualization
-- `garbage_classifier_X_epochs_Y_samples.pt` - Saved model weights
 
-## 🔄 Future Improvements### Model Enhancements- **Transfer Learning**: ResNet/EfficientNet backbones
+## 📊 Generated Outputs
+
+After training, the following files are automatically generated:
+
+- `training_losses.csv` - Loss data for plotting training progress
+- `confusion_matrix.csv` - Confusion matrix data for classification analysis
+- `evaluation_results.csv` - Detailed predictions with probabilities for each validation sample
+- `training_stats.csv` - Complete training metrics including losses and accuracies per epoch
+- `plot_results.py` - Python script for generating performance plots and visualizations
+- `garbage_classifier_100_epochs_13901_samples.pt` - Saved PyTorch model weights in universal format
+- `garbage_classifier_100_epochs_13901_samples_named.pt` - Named tensors format for Python compatibility
+- `garbage_classifier_100_epochs_13901_samples_tensors/` - Directory containing individual tensor files
+- `garbage_classifier_100_epochs_13901_samples_metadata.json` - JSON metadata file with training and model details
+
+---
+
+### Usage Notes
+
+- Use `plot_results.py` to generate insightful visualizations of training progress, losses, and metrics:
+
+## 🔄 Future Improvements
+### Model Enhancements- **Transfer Learning**: ResNet/EfficientNet backbones
 - **Attention Mechanisms**: Focus on distinguishing features
 - **Ensemble Methods**: Multiple model voting
 - **Advanced Augmentation**: MixUp, CutMix, AutoAugment
 
-### Engineering- **Early Stopping**: Automatic best model selection
+### Engineering
+- **Early Stopping**: Automatic best model selection
 - **Hyperparameter Tuning**: Automated search
 - **Model Serving**: REST API for inference
 - **Cross-Validation**: More robust evaluation
 
-## 🏆 Why Rust?- **Performance**: Near-C++ speed with memory safety
+## 🏆 Why Rust?
+- **Performance**: Near-C++ speed with memory safety
 - **Concurrency**: Excellent parallel processing support
 - **Ecosystem**: Growing ML/DL ecosystem with tch
 - **Deployment**: Single binary, no runtime dependencies
