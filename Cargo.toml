@@ -10,3 +10,4 @@ rand       = "0.8"
 anyhow     = "1"
 image = { version = "0.24.9", features = ["jpeg", "png"] }
 rayon = "1.7"
+chrono = { version = "0.4", features = ["serde"] }

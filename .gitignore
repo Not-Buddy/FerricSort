@@ -3,3 +3,11 @@ target/
 images/
 torch/
 data/
+*.pt
+*.csv
+*.png
+*.jpg
+*.json
+*.py
+*.txt
+Cargo.toml

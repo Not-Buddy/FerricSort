@@ -1,4 +1,5 @@
 // main.rs
+
 mod visualize_data;
 mod relu;
 mod train_model;
@@ -7,9 +8,10 @@ mod training_validation;
 
 use relu::CNN;
 use menu::{Sample, load_dataset};
-use std::{env};
-use tch::{Device, nn};
-use train_model::{TrainingConfig, train_model, save_model};
+use std::{env, io::{self, Write}};
+use tch::{Device, nn, vision, Tensor, Kind};
+use tch::nn::ModuleT;
+use train_model::{TrainingConfig, train_model, save_model, load_model_universal};
 use visualize_data::{DataLoader, visualize_batch};
 use training_validation::run_complete_evaluation;
 
@@ -22,7 +24,8 @@ fn parse_config_choice() -> Option<String> {
         println!(" 2 - Medium Test (2000 samples, 5 epochs, CPU/GPU)");
         println!(" 3 - Full Training (All samples, 100 epochs, GPU)");
         println!(" 4 - Custom Configuration");
-        println!("Example: cargo run -- 2");
+        println!(" 5 - 🔍 Manual Model Testing");
+        println!("Example: cargo run -- 5");
         return None;
     }
 
@@ -41,17 +44,182 @@ fn get_training_config_cli(choice: &str) -> Option<(usize, i64, f64, i64, f64, i
         },
         "3" => {
             println!("📊 Full Training Configuration Selected - ENHANCED");
-            Some((usize::MAX, 100, 1e-3, 10, 0.8, 32, Device::cuda_if_available()))  // Updated LR
+            Some((usize::MAX, 100, 1e-3, 10, 0.8, 32, Device::cuda_if_available()))
         },
         "4" => {
             println!("🎯 Enhanced Custom Configuration");
             Some((3000, 50, 1e-3, 8, 0.85, 24, Device::cuda_if_available()))
         },
         _ => {
-            println!("❌ Invalid choice! Use 1, 2, 3, or 4");
+            println!("❌ Invalid choice! Use 1, 2, 3, 4, or 5");
             None
         }
     }
+}
+
+fn test_single_image(
+    model: &CNN,
+    image_path: &str,
+    class_names: &[&str],
+    device: Device,
+) -> anyhow::Result<()> {
+    if !std::path::Path::new(image_path).exists() {
+        println!("❌ File not found: {}", image_path);
+        return Ok(());
+    }
+    
+    println!("📷 Processing: {}", image_path);
+    
+    // Load and preprocess the image
+    let image = vision::image::load(image_path)?;
+    
+    // Resize to 224x224 (same as training)
+    let resized = vision::image::resize(&image, 224, 224)?;
+    
+    // Normalize (ImageNet normalization - same as training)
+    let mean = Tensor::from_slice(&[0.485, 0.456, 0.406]).to_device(device).view([3, 1, 1]);
+    let std = Tensor::from_slice(&[0.229, 0.224, 0.225]).to_device(device).view([3, 1, 1]);
+    let normalized = ((resized.to_device(device) / 255.0) - &mean) / &std;
+    let batch = normalized.unsqueeze(0);
+    
+    // Get prediction
+    tch::no_grad(|| {
+        let output = model.forward_t(&batch, false);
+        let probabilities = output.softmax(-1, Kind::Float);
+        
+        println!("🎯 Predictions:");
+        println!("{:-<50}", "");
+        
+        // Get sorted predictions
+        let (sorted_probs, sorted_indices) = probabilities.sort(-1, true);
+        
+        // Emojis for ranking
+        let emojis = ["🏆", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"];
+        
+        for i in 0..class_names.len() {
+            let class_idx = sorted_indices.int64_value(&[0, i as i64]) as usize; // FIXED: Type casting
+            let confidence = sorted_probs.double_value(&[0, i as i64]) * 100.0;   // FIXED: Type casting
+            let emoji = if i < emojis.len() { emojis[i] } else { "  " };
+            
+            // Create visual bar
+            let bar_length = (confidence / 5.0) as usize;
+            let bar = "█".repeat(bar_length);
+            
+            println!("{} {:<10} {:6.1}% {}", emoji, class_names[class_idx], confidence, bar);
+        }
+        
+        println!("{:-<50}", "");
+        
+        // Show the top prediction prominently
+        let top_class_idx = sorted_indices.int64_value(&[0, 0]) as usize;
+        let top_confidence = sorted_probs.double_value(&[0, 0]) * 100.0;
+        
+        println!("🎯 PREDICTION: {} ({:.1}% confidence)", 
+                 class_names[top_class_idx].to_uppercase(), top_confidence);
+    });
+    
+    Ok(())
+}
+
+fn test_model_interactive() -> anyhow::Result<()> {
+    println!("🔍 Loading trained model for testing...");
+    
+    // Try to find a trained model (now with multiple format support)
+    let model_candidates = [
+        "best_model",
+        "garbage_classifier_48_epochs_2700_samples",
+        "garbage_classifier_50_epochs_2700_samples",
+    ];
+    
+    let mut found_model = None;
+    for base_name in &model_candidates {
+        // Check if any format exists
+        let formats = [
+            format!("{}.pt", base_name),
+            format!("{}_named.pt", base_name),
+            format!("{}_tensors", base_name),
+        ];
+        
+        for format_path in &formats {
+            if std::path::Path::new(format_path).exists() {
+                found_model = Some(*base_name);
+                break;
+            }
+        }
+        
+        if found_model.is_some() {
+            break;
+        }
+    }
+    
+    let model_base_name = match found_model {
+        Some(name) => name,
+        None => {
+            println!("❌ No trained model found!");
+            println!("Please train a model first using options 1-4");
+            println!("Looking for files like:");
+            println!("  - best_model.pt");
+            println!("  - best_model_named.pt");
+            println!("  - best_model_tensors/");
+            return Ok(());
+        }
+    };
+    
+    // Setup device and load model
+    let device = Device::cuda_if_available();
+    let mut vs = nn::VarStore::new(device); // Make it mutable for loading
+    let model = CNN::new(&vs.root(), 6, 0.15);
+    
+    // Use enhanced universal loading
+    match load_model_universal(&mut vs, model_base_name) {
+        Ok(_) => {
+            println!("✅ Successfully loaded model: {}", model_base_name);
+        },
+        Err(e) => {
+            println!("❌ Error loading model: {}", e);
+            println!("💡 Trying fallback to untrained model for testing...");
+            println!("⚠️ Predictions will be random!");
+            // Continue with untrained model
+        }
+    }
+    
+    let class_names = ["cardboard", "glass", "metal", "paper", "plastic", "trash"];
+    
+    match device {
+        Device::Cpu => println!("🖥️ Using CPU for inference"),
+        Device::Cuda(_) => println!("🚀 Using GPU for inference"),
+        _ => println!("⚠️ Using alternative device for inference"),
+    }
+    
+    println!("\n🎯 Manual Image Testing");
+    println!("Enter image paths to classify (or 'quit' to exit):");
+    
+    loop {
+        print!("Image path: ");
+        io::stdout().flush()?; 
+        
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        
+        if input.is_empty() {
+            continue;
+        }
+        
+        if input.eq_ignore_ascii_case("quit") || input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("q") {
+            break;
+        }
+        
+        match test_single_image(&model, input, &class_names, device) { 
+            Ok(_) => {},
+            Err(e) => println!("❌ Error processing image: {}", e),
+        }
+        
+        println!(); // Empty line for readability
+    }
+    
+    println!("👋 Testing session ended!");
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -59,6 +227,10 @@ fn main() -> anyhow::Result<()> {
         Some(c) => c,
         None => return Ok(()),
     };
+
+    if choice == "5" {
+        return test_model_interactive();
+    }
 
     let config = match get_training_config_cli(&choice) {
         Some(config) => config,
@@ -112,7 +284,7 @@ fn main() -> anyhow::Result<()> {
         data[0].img.min().double_value(&[]),
         data[0].img.max().double_value(&[]));
 
-    // Training phase - FIXED: Added missing fields
+    // Training phase
     println!("\n🏋️ Starting Training...");
     let config = TrainingConfig {
         num_epochs,
@@ -120,8 +292,8 @@ fn main() -> anyhow::Result<()> {
         step_size,
         gamma,
         max_norm: 1.0,
-        weight_decay: 1e-4,        // FIXED: Added missing field
-        warmup_epochs: 5,          // FIXED: Added missing field
+        weight_decay: 1e-4,
+        warmup_epochs: 5,
     };
 
     println!("⚙️ Training Configuration:");
@@ -132,7 +304,6 @@ fn main() -> anyhow::Result<()> {
     println!(" Weight Decay: {:.6}", config.weight_decay);
     println!(" Warmup Epochs: {}", config.warmup_epochs);
     println!(" 🔄 Using Hybrid: Cosine Annealing + Step Decay");
-
 
     let start_time = std::time::Instant::now();
 
